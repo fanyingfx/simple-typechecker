@@ -57,6 +57,58 @@ class EvaTC {
         if (this._isBooleanBinary(exp)) {
             return this._booleanBinary(exp, env);
         }
+        if(exp[0] === 'type'){
+            // console.log('new type alias');
+            const [_tag,name,base]=exp;
+            if(Type.hasOwnProperty(name)){
+                throw `Type ${name} is already defined: ${Type[name]}.`;
+            }
+            if(!Type.hasOwnProperty(base)){
+                throw `Type ${base} is not defined.`;
+            }
+            let newType = new Type.Alias({name,parent:Type[base]});
+            Type[name]=newType;
+            return newType;
+
+        }
+        if(exp[0] === 'class'){
+            const [_tag,name,superClassName,body]=exp;
+
+            const superClass = Type[superClassName];
+            const classType = new Type.Class({name,superClass});
+            Type[name] = env.define(name,classType);
+            this._tcBody(body,classType.env);
+            return classType;
+        }
+        if (exp[0] === 'new'){
+            const [_tag,className,...argValues]=exp;
+            const classType = Type[className];
+            if(classType == null){
+                throw `Unknown class ${className}.`;
+            }
+            const argTypes = argValues.map(arg=>this.tc(arg,env));
+
+            return this._checkFunctionCall(
+                classType.getField('constructor'),
+                [classType,...argTypes],
+                env,
+                exp
+            );
+        }
+        if(exp[0] === 'super'){
+            const [_tag,className] = exp;
+            const classType = Type[className];
+            if(classType == null){
+                throw `Unknown class ${className}.`;
+            }
+            return classType.superClass;
+        }
+        if(exp[0] === 'prop'){
+            const [_tag,instance,name]=exp;
+            const instanceType = this.tc(instance,env);
+            return instanceType.getField(name);
+        }
+  
 
         if (exp[0] === 'var') {
             const [_tag, name, value] = exp;
@@ -74,6 +126,18 @@ class EvaTC {
         }
         if (exp[0] === 'set') {
             const [_, ref, value] = exp;
+
+            if(ref[0] === 'prop'){
+                const [_tag,instance,propName] =ref;
+                const instanceType = this.tc(instance,env);
+
+                const valueType = this.tc(value,env);
+                const propType = instanceType.getField(propName);
+
+                return this._expect(valueType,propType,value,exp);
+            }
+
+
             const valueType = this.tc(value, env);
             const varType = this.tc(ref, env);
             return this._expect(valueType, varType, value, exp);
@@ -98,7 +162,6 @@ class EvaTC {
 
             const t1 = this.tc(condition, env);
             this._expect(t1, Type.boolean, condition, exp);
-            // console.log('while-body',body);
             return this.tc(body, env);
         }
         if (exp[0] === 'def') {
@@ -239,6 +302,7 @@ class EvaTC {
         }
     }
     _expectOperatorType(type_, allowedTypes, exp) {
+        
         if (!allowedTypes.some(t => t.equals(type_))) {
             throw `\nUnexpected type: ${type_} in ${exp}, allowed: ${allowedTypes}`;
         }

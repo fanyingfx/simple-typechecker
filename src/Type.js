@@ -1,3 +1,5 @@
+const TypeEnvironment = require("./TypeEnvironment");
+
 class Type {
     constructor(name) {
         this.name = name;
@@ -10,13 +12,16 @@ class Type {
     }
 
     equals(other) {
+        if (other instanceof Type.Alias) {
+            return other.equals(this);
+        }
         return this.name === other.name;
     }
     static fromString(typeStr) {
         if (this.hasOwnProperty(typeStr)) {
             return this[typeStr];
         }
-        if(typeStr.includes('Fn<')){
+        if (typeStr.includes('Fn<')) {
             return Type.Function.fromString(typeStr);
         }
         throw `Unknown type: ${typeStr}`;
@@ -26,6 +31,7 @@ class Type {
 Type.number = new Type('number');
 Type.string = new Type('string');
 Type.boolean = new Type('boolean');
+Type.null = new Type('null');
 Type.Function = class extends Type {
     constructor({ name = null, paramTypes, returnType }) {
         super(name);
@@ -63,15 +69,15 @@ Type.Function = class extends Type {
         }
         return true;
     }
-    static fromString(typeStr){
-        if(Type.hasOwnProperty(typeStr)){
+    static fromString(typeStr) {
+        if (Type.hasOwnProperty(typeStr)) {
             return Type[typeStr];
         }
         let matched = /^Fn<(\w+)<([a-z,\s]+)>>$/.exec(typeStr);
-        if(matched != null){
-            const [_,returnTypeStr,paramsString] = matched;
+        if (matched != null) {
+            const [_, returnTypeStr, paramsString] = matched;
 
-            const paramTypes = paramsString.split(/,\s*/g).map(param=>Type.fromString(param));
+            const paramTypes = paramsString.split(/,\s*/g).map(param => Type.fromString(param));
             return (Type[typeStr] = new Type.Function({
                 name: typeStr,
                 paramTypes,
@@ -79,8 +85,8 @@ Type.Function = class extends Type {
             }));
         }
         matched = /^Fn<(\w+)>$/.exec(typeStr);
-        if(matched!=null){
-            const [_,returnTypeStr] = matched;
+        if (matched != null) {
+            const [_, returnTypeStr] = matched;
             return (Type[typeStr] = new Type.Function({
                 name: typeStr,
                 paramTypes: [],
@@ -90,4 +96,42 @@ Type.Function = class extends Type {
         throw `Type.Function.fromString: Unknown type: ${typeStr}.`;
     }
 };
+Type.Alias = class extends Type {
+    constructor({ name, parent }) {
+        super(name);
+        this.parent = parent;
+    }
+
+    equals(other) {
+        // console.log('check type alias');
+        if (this.name === other.name) {
+            return true;
+        }
+        return this.parent.equals(other);
+    }
+};
+Type.Class = class extends Type {
+    constructor({ name, superClass = Type.null }) {
+        super(name);
+        this.superClass = superClass;
+        this.env = new TypeEnvironment({}, superClass != Type.null ? superClass.env : null);
+    }
+
+    getField(name) {
+        return this.env.lookup(name);
+    }
+    equals(other) {
+        if (this === other) {
+            return true;
+        }
+        if (other instanceof Type.Alias) {
+            return other.equals(this);
+        }
+        if (this.superClass != Type.null) {
+            return this.superClass.equals(other);
+        }
+        return false;
+    }
+}
+
 module.exports = Type;
