@@ -14,9 +14,34 @@ class EvaTC {
         }
         return this.tc(body, env);
     }
+    _tcFunction(params, returnTypeStr, body, env) {
+        const returnType = Type.fromString(returnTypeStr);
+
+        const paramsRecord = {};
+        const paramTypes = [];
+
+        for (const [name, typeStr] of params) {
+            const paramType = Type.fromString(typeStr);
+            paramsRecord[name] = paramType;
+            paramTypes.push(paramType);
+        }
+
+        const fnEnv = new TypeEnvironment(paramsRecord, env);
+
+        const actualReturnType = this._tcBody(body, fnEnv);
+
+        if (!returnType.equals(actualReturnType)) {
+            throw `Expected funciton ${body} to return ${returnType}, but got ${actualReturnType}.`
+        }
+
+        return new Type.Function({
+            paramTypes,
+            returnType
+        });
+    }
 
     tc(exp, env = this.global) {
-        
+
         if (this._isNumber(exp)) {
             return Type.number;
         }
@@ -57,33 +82,54 @@ class EvaTC {
             const blockEnv = new TypeEnvironment({}, env);
             return this._tcBlock(exp, blockEnv);
         }
-        if(exp[0] === 'if'){
-            const [_tag,condition,consequent,alternate] = exp;
+        if (exp[0] === 'if') {
+            const [_tag, condition, consequent, alternate] = exp;
 
-            const t1 = this.tc(condition,env);
-            this._expect(t1,Type.boolean,condition,exp);
+            const t1 = this.tc(condition, env);
+            this._expect(t1, Type.boolean, condition, exp);
 
-            const t2 = this.tc(consequent,env);
-            const t3 = this.tc(alternate,env);
-            return this._expect(t3,t2,exp,exp)
+            const t2 = this.tc(consequent, env);
+            const t3 = this.tc(alternate, env);
+            return this._expect(t3, t2, exp, exp)
 
         }
-        if(exp[0] === 'while'){
-            const [_tag,condition,body] = exp;
+        if (exp[0] === 'while') {
+            const [_tag, condition, body] = exp;
 
-            const t1 = this.tc(condition,env);
-            this._expect(t1,Type.boolean,condition,exp);
+            const t1 = this.tc(condition, env);
+            this._expect(t1, Type.boolean, condition, exp);
             // console.log('while-body',body);
-            return this.tc(body,env);
+            return this.tc(body, env);
         }
+        if (exp[0] === 'def') {
+            // console.log(exp);
+            const [_tag, name, params, _retDel, returnTypeStr, body] = exp;
+            return env.define(name, this._tcFunction(params, returnTypeStr, body, env));
+        }
+        // Function call 
+        // (square 2)
+        if (Array.isArray(exp)) {
+            const [fn_exp, ...argValues] = exp;
+            const fn = this.tc(fn_exp, env);
 
+            const argTypes = argValues.map(arg => this.tc(arg, env));
 
+            return this._checkFunctionCall(fn, argTypes, env, exp);
 
-
-
+        }
 
         throw `Unknown type of expression ${exp}.`;
 
+    }
+    _checkFunctionCall(fn,argTypes,env,exp){
+        if(fn.paramTypes.length !== argTypes.length){
+            throw `\nFunction ${exp[0]} ${fn.getName()} expects ${fn.paramTypes.length} arguments, ${argTypes.length} given in ${exp}.\n`;
+        }
+
+        for (const [index, argType] of argTypes.entries()) {
+            this._expect(argType, fn.paramTypes[index], argTypes[index], exp);
+        }
+        return fn.returnType;
     }
     _tcBlock(block, env) {
         let result;
