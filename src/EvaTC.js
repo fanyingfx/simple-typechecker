@@ -243,6 +243,8 @@ class EvaTC {
     _createGlobal() {
         return new TypeEnvironment({
             VERSION: Type.string,
+            sum: Type.fromString('Fn<number<number,number>>'),
+            square: Type.fromString('Fn<number<number>>'),
         });
     }
 

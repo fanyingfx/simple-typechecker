@@ -6,7 +6,8 @@ const tests = [
     require('./block-test.js'),
     require('./if-test.js'),
     require('./while-test.js'),
-    require('./user-defined-function-test.js')
+    require('./user-defined-function-test.js'),
+    require('./built-in-funciton-test.js'),
 ];
 
 // tests.forEach(test=>test(eva));
