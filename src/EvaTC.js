@@ -102,9 +102,29 @@ class EvaTC {
             return this.tc(body, env);
         }
         if (exp[0] === 'def') {
-            // console.log(exp);
-            const [_tag, name, params, _retDel, returnTypeStr, body] = exp;
-            return env.define(name, this._tcFunction(params, returnTypeStr, body, env));
+            
+            // const [_tag, name, params, _retDel, returnTypeStr, body] = exp;
+            const varExp = this._transformDefToVarLambda(exp);
+            const name= exp[1];
+            const params = exp[2];
+            const returnTypeStr = exp[4];
+
+            const paramTypes = params.map(([name,typeStr])=> Type.fromString(typeStr));
+            // register function 
+            env.define(
+                name,
+                new Type.Function({
+                    paramTypes,
+                    returnType: Type.fromString(returnTypeStr),
+                }),
+            );
+
+            // validate function body
+            return this.tc(varExp, env);
+        }
+        if(exp[0] === 'lambda'){
+            const [_tag, params, _retDel, returnTypeStr, body] = exp;
+            return this._tcFunction(params, returnTypeStr, body, env);
         }
         // Function call 
         // (square 2)
@@ -119,6 +139,11 @@ class EvaTC {
         }
 
         throw `Unknown type of expression ${exp}.`;
+
+    }
+    _transformDefToVarLambda(exp){
+        const [_tag,name,params,_retDel,returnTypeStr,body] = exp;
+        return ['var',name,['lambda',params,_retDel,returnTypeStr,body]];
 
     }
     _checkFunctionCall(fn,argTypes,env,exp){
@@ -190,15 +215,9 @@ class EvaTC {
     _booleanBinary(exp, env) {
         // console.log("check boolean binary");
         this._checkArity(exp, 2);
-        // console.log(exp,exp[1],exp[2]);
-        // console.log(typeof exp[1]);
         const t1 = this.tc(exp[1], env);
         const t2 = this.tc(exp[2], env);
 
-        // const allowedTypes = this._getOperandTypesForOperator(exp[0]);
-        // this._expectOperatorType(t1, allowedTypes, exp);
-        // this._expectOperatorType(t2, allowedTypes, exp);
-        // console.log(t2,t1);
 
         this._expect(t2, t1, exp[2], exp);
         return Type.boolean;
