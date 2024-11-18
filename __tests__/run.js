@@ -10,7 +10,9 @@ const tests = [
     // require('./built-in-funciton-test.js'),
     // require('./lambda-function-test.js'),
     // require('./alias-test.js'),
-    require('./class-test.js'),
+    // require('./class-test.js'),
+    // require('./union-test.js'),
+    require('./generics-test.js'),
 
 ];
 
